@@ -72,6 +72,60 @@ const TOP_BAR_ICON_BUTTON_SIZE = 36;
 const LANGUAGE_MENU_WIDTH = 176;
 const AGENT_PANEL_WIDTH = 420;
 
+// Top-bar clock: shown between the "system" and "tools" buttons. It turns red
+// while the local time is inside the active windows 09:00-12:00 or 14:00-18:00
+// (whole-hour boundaries count as inside), and otherwise follows the theme via
+// the muted toolbar text color.
+const TOP_BAR_RED_TIME = "#ef4444";
+const RED_TIME_WINDOWS: ReadonlyArray<readonly [startMinutes: number, endMinutes: number]> = [
+  [9 * 60, 12 * 60],
+  [14 * 60, 18 * 60],
+];
+
+function isRedTime(date: Date): boolean {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  return RED_TIME_WINDOWS.some(([start, end]) => minutes >= start && minutes <= end);
+}
+
+function TopBarClock({ mobile }: { mobile: boolean }) {
+  const [now, setNow] = useState(() => new Date());
+
+  // Update at the start of each minute so the red window flips exactly on the
+  // whole-hour boundaries without drift.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      timer = setTimeout(() => {
+        setNow(new Date());
+        schedule();
+      }, 60_000 - (Date.now() % 60_000) + 50);
+    };
+    schedule();
+    return () => clearTimeout(timer);
+  }, []);
+
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        height: "100%", padding: mobile ? "0 6px" : "0 12px",
+        borderRight: "1px solid var(--border)",
+        color: isRedTime(now) ? TOP_BAR_RED_TIME : "var(--text-muted)",
+        fontSize: mobile ? 10 : 11, whiteSpace: "nowrap", flexShrink: 0,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+      <span>{`${hh}:${mm}`}</span>
+    </div>
+  );
+}
+
 function parkedNewSessionDraftKey(cwd: string): string {
   return `parked-new:${cwd}`;
 }
@@ -1597,6 +1651,7 @@ export function AppShell() {
           </svg>
           {!mobile && <span>{translate("system.label")}</span>}
         </button>
+        <TopBarClock mobile={mobile} />
         <button
           type="button"
           onClick={() => handleSystemInfoToggle("tools", mobile)}
